@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Embedding Proxy — Dashboard</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --border: #2a2d3a;
+    --text: #e2e8f0; --muted: #64748b; --accent: #6366f1;
+    --green: #22c55e; --red: #ef4444; --yellow: #eab308;
+  }
+  body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; font-size: 14px; }
+
+  #app { display: flex; min-height: 100vh; }
+  nav { width: 200px; background: var(--surface); border-right: 1px solid var(--border);
+        padding: 24px 0; display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
+  nav h1 { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase;
+            letter-spacing: .08em; padding: 0 16px 12px; }
+  nav button { background: none; border: none; color: var(--muted); text-align: left;
+               padding: 8px 16px; cursor: pointer; font-size: 14px; transition: background .15s, color .15s; }
+  nav button:hover, nav button.active { background: rgba(99,102,241,.15); color: var(--text); }
+  main { flex: 1; padding: 32px; overflow-y: auto; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 16px; margin-bottom: 28px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
+  .card .label { font-size: 11px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .06em; }
+  .card .value { font-size: 24px; font-weight: 700; }
+  .card .sub   { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 28px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: rgba(255,255,255,.03); text-align: left; padding: 9px 14px;
+       font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em;
+       border-bottom: 1px solid var(--border); }
+  td { padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,.02); }
+
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+  .badge-green { background: rgba(34,197,94,.15); color: var(--green); }
+  .badge-red   { background: rgba(239,68,68,.15);  color: var(--red); }
+
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px;
+         border-radius: 7px; border: 1px solid var(--border); font-size: 13px;
+         cursor: pointer; background: var(--surface); color: var(--text); transition: background .15s; }
+  .btn:hover { background: var(--border); }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #4f46e5; }
+  .btn-danger  { color: var(--red); border-color: rgba(239,68,68,.4); }
+  .btn-danger:hover { background: rgba(239,68,68,.1); }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex;
+              align-items: center; justify-content: center; z-index: 100; }
+  .modal    { background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+              padding: 28px; width: 420px; max-width: 95vw; }
+  .modal h2 { font-size: 16px; margin-bottom: 20px; }
+  .field    { margin-bottom: 16px; }
+  .field label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 6px;
+                 text-transform: uppercase; letter-spacing: .06em; }
+  .field input { width: 100%; background: var(--bg); border: 1px solid var(--border);
+                 color: var(--text); padding: 9px 12px; border-radius: 7px; font-size: 14px; }
+  .field input:focus { outline: none; border-color: var(--accent); }
+  .field .hint { font-size: 12px; color: var(--muted); margin-top: 5px; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+  .key-box { background: var(--bg); border: 1px solid var(--border); border-radius: 7px;
+             padding: 12px; font-family: monospace; font-size: 12px; word-break: break-all;
+             color: var(--green); margin: 12px 0; }
+
+  .toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  .toolbar h2 { font-size: 18px; font-weight: 600; }
+
+  .section-title { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase;
+                   letter-spacing: .08em; margin-bottom: 12px; margin-top: 4px; }
+
+  .progress { height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 5px; min-width: 80px; }
+  .progress-bar { height: 100%; background: var(--accent); border-radius: 3px; }
+  .progress-bar.warn { background: var(--yellow); }
+  .progress-bar.over { background: var(--red); }
+
+  .mono { font-family: monospace; font-size: 12px; color: var(--muted); }
+  .hidden { display: none !important; }
+  .empty { padding: 36px; text-align: center; color: var(--muted); }
+
+  /* Docs page */
+  .docs { max-width: 760px; }
+  .docs h2 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+  .docs .lead { color: var(--muted); margin-bottom: 36px; line-height: 1.6; }
+  .docs h3 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em;
+             color: var(--muted); margin: 32px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .docs p  { line-height: 1.7; color: #cbd5e1; margin-bottom: 12px; }
+  .docs ul { padding-left: 20px; color: #cbd5e1; line-height: 1.9; margin-bottom: 12px; }
+  .docs pre { background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+              padding: 16px; overflow-x: auto; margin: 12px 0 20px; font-size: 13px; line-height: 1.6; }
+  .docs code { font-family: monospace; }
+  .docs .inline-code { background: rgba(255,255,255,.07); border-radius: 4px;
+                       padding: 1px 6px; font-family: monospace; font-size: 13px; }
+  .docs .method { display: inline-block; padding: 2px 8px; border-radius: 5px; font-size: 12px;
+                  font-weight: 700; font-family: monospace; margin-right: 8px; }
+  .docs .post { background: rgba(99,102,241,.2); color: #a5b4fc; }
+  .docs .get  { background: rgba(34,197,94,.15); color: #86efac; }
+  .docs .del  { background: rgba(239,68,68,.15); color: #fca5a5; }
+  .docs .patch { background: rgba(234,179,8,.15); color: #fde047; }
+  .docs .endpoint { background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+                    padding: 14px 16px; margin-bottom: 10px; }
+  .docs .endpoint .path { font-family: monospace; font-size: 14px; }
+  .docs .endpoint .desc { font-size: 13px; color: var(--muted); margin-top: 4px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <nav>
+    <h1>Emb Proxy</h1>
+    <button class="active" onclick="showPage('overview')">Overview</button>
+    <button onclick="showPage('tokens')">API Tokens</button>
+    <button onclick="showPage('cache')">Cache</button>
+    <button onclick="showPage('docs')">Docs</button>
+  </nav>
+  <main id="content">Loading…</main>
+</div>
+
+<!-- Create token modal -->
+<div id="modal-create" class="modal-bg hidden">
+  <div class="modal">
+    <h2>Create API Token</h2>
+    <div class="field">
+      <label>Name</label>
+      <input id="new-name" type="text" placeholder="e.g. production-app" />
+    </div>
+    <div class="field">
+      <label>Upstream Budget (USD)</label>
+      <input id="new-budget" type="number" step="0.01" min="0" placeholder="e.g. 5.00" />
+      <div class="hint">Leave blank for unlimited. Only non-cached requests count against budget.</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeCreate()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitCreate()">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit token modal -->
+<div id="modal-edit" class="modal-bg hidden">
+  <div class="modal">
+    <h2>Edit Token</h2>
+    <input type="hidden" id="edit-id" />
+    <div class="field">
+      <label>Name</label>
+      <input id="edit-name" type="text" />
+    </div>
+    <div class="field">
+      <label>Upstream Budget (USD)</label>
+      <input id="edit-budget" type="number" step="0.01" min="0" placeholder="leave blank for unlimited" />
+      <div class="hint">Only non-cached requests count against budget.</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeEdit()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitEdit()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Key reveal modal -->
+<div id="modal-reveal" class="modal-bg hidden">
+  <div class="modal">
+    <h2>Token Created</h2>
+    <p style="color:var(--muted);font-size:13px">Copy this key now — it will not be shown again.</p>
+    <div id="reveal-key" class="key-box"></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="closeReveal()">Done</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const ADMIN_KEY = (() => {
+  let k = localStorage.getItem('admin_key');
+  if (!k) { k = prompt('Enter admin key:') || ''; localStorage.setItem('admin_key', k); }
+  return k;
+})();
+
+const H = { 'Authorization': `Bearer ${ADMIN_KEY}`, 'Content-Type': 'application/json' };
+
+async function api(method, path, body) {
+  const r = await fetch('/admin' + path, { method, headers: H, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { localStorage.removeItem('admin_key'); location.reload(); }
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+// Formatting helpers
+const usd  = n => n == null ? '—' : '$' + Number(n).toFixed(n < 0.01 && n > 0 ? 6 : 4);
+const fmt  = n => { if (n == null) return '—'; if (n>=1e9) return (n/1e9).toFixed(1)+'B'; if (n>=1e6) return (n/1e6).toFixed(1)+'M'; if (n>=1e3) return (n/1e3).toFixed(1)+'K'; return String(n); };
+const pct  = (a, b) => b ? (a/b*100).toFixed(1)+'%' : '—';
+const esc  = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+let page = 'overview';
+
+const PAGES = ['overview','tokens','cache','docs'];
+
+function showPage(p) {
+  page = p;
+  document.querySelectorAll('nav button').forEach((b, i) => {
+    b.classList.toggle('active', PAGES[i] === p);
+  });
+  loadPage();
+}
+
+async function loadPage() {
+  const el = document.getElementById('content');
+  el.innerHTML = 'Loading…';
+  try {
+    if (page === 'overview') await renderOverview(el);
+    else if (page === 'tokens') await renderTokens(el);
+    else if (page === 'cache') await renderCache(el);
+    else if (page === 'docs') renderDocs(el);
+  } catch(e) {
+    el.innerHTML = `<div style="color:var(--red);padding:20px">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+function renderDocs(el) {
+  const base = window.location.origin;
+  el.innerHTML = `<div class="docs">
+  <h2>API Reference</h2>
+  <p class="lead">Drop-in replacement for the OpenAI / OpenRouter embeddings API. Point your clients at
+    <span class="inline-code">${base}</span> and add an API token in the Authorization header.
+    Responses are cached permanently — identical inputs never hit upstream twice.</p>
+
+  <h3>Authentication</h3>
+  <p>All embedding requests require a Bearer token created in the <strong>API Tokens</strong> tab.</p>
+  <pre><code>Authorization: Bearer emb_xxxxxxxxxxxxxxxx</code></pre>
+  <p>Admin endpoints require the admin key set at server startup (<span class="inline-code">ADMIN_KEY</span> env var).</p>
+
+  <h3>Embeddings</h3>
+  <div class="endpoint">
+    <div><span class="method post">POST</span><span class="path">/v1/embeddings</span></div>
+    <div class="desc">Also available at <span class="inline-code">/api/v1/embeddings</span></div>
+  </div>
+  <p><strong>Request body</strong></p>
+  <pre><code>{
+  "model": "openai/text-embedding-3-small",  // any OpenRouter embedding model
+  "input": "your text here"                  // string or array of strings
+}</code></pre>
+  <p><strong>Response</strong></p>
+  <pre><code>{
+  "object": "list",
+  "data": [
+    { "object": "embedding", "index": 0, "embedding": [0.0023, -0.0091, ...] }
+  ],
+  "model": "openai/text-embedding-3-small",
+  "usage": { "prompt_tokens": 4, "total_tokens": 4 }
+}</code></pre>
+  <p>Batch requests (array input) are handled per-item — cached items are returned instantly while only
+  cache misses are forwarded to OpenRouter. A token's upstream budget is only debited for the miss portion.</p>
+
+  <h3>Models</h3>
+  <div class="endpoint">
+    <div><span class="method get">GET</span><span class="path">/v1/models</span></div>
+    <div class="desc">Lists commonly used embedding models. Also available at <span class="inline-code">/api/v1/models</span></div>
+  </div>
+  <p>Common model IDs accepted by OpenRouter:</p>
+  <ul>
+    <li><span class="inline-code">openai/text-embedding-3-small</span> — fast, cheap, 1536 dims</li>
+    <li><span class="inline-code">openai/text-embedding-3-large</span> — highest quality, 3072 dims</li>
+    <li><span class="inline-code">openai/text-embedding-ada-002</span> — legacy, 1536 dims</li>
+  </ul>
+
+  <h3>Error responses</h3>
+  <ul>
+    <li><span class="inline-code">401</span> — missing or invalid API key</li>
+    <li><span class="inline-code">429</span> — upstream budget exceeded (cached inputs still work)</li>
+    <li><span class="inline-code">502</span> — OpenRouter returned an error</li>
+    <li><span class="inline-code">503</span> — no <span class="inline-code">OPENROUTER_API_KEY</span> configured on the server</li>
+  </ul>
+
+  <h3>Code examples</h3>
+  <p><strong>curl</strong></p>
+  <pre><code>curl ${base}/v1/embeddings \\
+  -H "Authorization: Bearer emb_your_token" \\
+  -H "Content-Type: application/json" \\
+  -d '{"model":"openai/text-embedding-3-small","input":"hello world"}'</code></pre>
+
+  <p><strong>Python (openai SDK)</strong></p>
+  <pre><code>from openai import OpenAI
+
+client = OpenAI(
+    api_key="emb_your_token",
+    base_url="${base}/v1",
+)
+
+resp = client.embeddings.create(
+    model="openai/text-embedding-3-small",
+    input=["hello world", "another sentence"],
+)
+vectors = [d.embedding for d in resp.data]</code></pre>
+
+  <p><strong>JavaScript (openai SDK)</strong></p>
+  <pre><code>import OpenAI from "openai";
+
+const client = new OpenAI({
+  apiKey: "emb_your_token",
+  baseURL: "${base}/v1",
+});
+
+const resp = await client.embeddings.create({
+  model: "openai/text-embedding-3-small",
+  input: ["hello world", "another sentence"],
+});
+const vectors = resp.data.map(d => d.embedding);</code></pre>
+
+  <h3>Admin API</h3>
+  <p>All admin endpoints require <span class="inline-code">Authorization: Bearer &lt;ADMIN_KEY&gt;</span>.</p>
+
+  <div class="endpoint">
+    <div><span class="method get">GET</span><span class="path">/admin/stats</span></div>
+    <div class="desc">Global usage stats and cache summary</div>
+  </div>
+  <div class="endpoint">
+    <div><span class="method get">GET</span><span class="path">/admin/tokens</span></div>
+    <div class="desc">List all tokens with per-token stats</div>
+  </div>
+  <div class="endpoint">
+    <div><span class="method post">POST</span><span class="path">/admin/tokens</span></div>
+    <div class="desc">Create a token — body: <span class="inline-code">{"name":"…","budget_usd":5.00}</span> (budget optional)</div>
+  </div>
+  <div class="endpoint">
+    <div><span class="method get">GET</span><span class="path">/admin/tokens/:id</span></div>
+    <div class="desc">Token detail with per-model breakdown</div>
+  </div>
+  <div class="endpoint">
+    <div><span class="method patch">PATCH</span><span class="path">/admin/tokens/:id</span></div>
+    <div class="desc">Update token — any of <span class="inline-code">name</span>, <span class="inline-code">enabled</span>, <span class="inline-code">budget_usd</span> (null = unlimited)</div>
+  </div>
+  <div class="endpoint">
+    <div><span class="method del">DELETE</span><span class="path">/admin/tokens/:id</span></div>
+    <div class="desc">Delete token and all its request history</div>
+  </div>
+  <div class="endpoint">
+    <div><span class="method get">GET</span><span class="path">/admin/cache</span></div>
+    <div class="desc">Cache stats by model</div>
+  </div>
+  <div class="endpoint">
+    <div><span class="method del">DELETE</span><span class="path">/admin/cache</span></div>
+    <div class="desc">Purge all cached embeddings</div>
+  </div>
+</div>`;
+}
+
+async function renderOverview(el) {
+  const { global: g, cache: c } = await api('GET', '/stats');
+  const hitRate = pct(g.cache_hits, g.total_inputs);
+
+  el.innerHTML = `
+    <div class="cards">
+      <div class="card">
+        <div class="label">Total Inputs</div>
+        <div class="value">${fmt(g.total_inputs)}</div>
+        <div class="sub">${fmt(g.total_requests)} API calls</div>
+      </div>
+      <div class="card">
+        <div class="label">Cache Hit Rate</div>
+        <div class="value">${hitRate}</div>
+        <div class="sub">${fmt(g.cache_hits)} hits · ${fmt(g.upstream_count)} upstream</div>
+      </div>
+      <div class="card">
+        <div class="label">Total Cost</div>
+        <div class="value">${usd(g.total_cost_usd)}</div>
+        <div class="sub">${fmt(g.upstream_tokens)} upstream tokens</div>
+      </div>
+      <div class="card">
+        <div class="label">Cached Entries</div>
+        <div class="value">${fmt(c.total_entries)}</div>
+        <div class="sub">${fmt(c.total_hits)} lifetime hits</div>
+      </div>
+    </div>
+
+    ${g.by_model?.length ? `
+    <div class="section-title">By Model</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Model</th><th>Inputs</th><th>Cache Hits</th><th>Hit Rate</th><th>Upstream</th><th>Cost</th></tr></thead>
+        <tbody>
+          ${g.by_model.map(m => `<tr>
+            <td class="mono">${esc(m.model)}</td>
+            <td>${fmt(m.total_inputs)}</td>
+            <td>${fmt(m.cache_hits)}</td>
+            <td>${pct(m.cache_hits, m.total_inputs)}</td>
+            <td>${fmt(m.upstream_count)}</td>
+            <td>${usd(m.cost_usd)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>` : ''}
+
+    <div class="section-title">Last 30 Days</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Inputs</th><th>Cache Hits</th><th>Hit Rate</th><th>Upstream</th><th>Cost</th></tr></thead>
+        <tbody>
+          ${g.daily.length === 0
+            ? '<tr><td colspan="6" class="empty">No requests yet</td></tr>'
+            : g.daily.map(d => `<tr>
+                <td>${d.date}</td>
+                <td>${fmt(d.total_inputs)}</td>
+                <td>${fmt(d.cache_hits)}</td>
+                <td>${pct(d.cache_hits, d.total_inputs)}</td>
+                <td>${fmt(d.upstream_count)}</td>
+                <td>${usd(d.cost_usd)}</td>
+              </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+async function renderTokens(el) {
+  const tokens = await api('GET', '/tokens');
+  el.innerHTML = `
+    <div class="toolbar">
+      <h2>API Tokens</h2>
+      <button class="btn btn-primary" onclick="openCreate()">+ New Token</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Name</th><th>Prefix</th><th>Status</th>
+          <th>Inputs</th><th>Hit Rate</th><th>Cost (upstream)</th><th>Budget</th>
+          <th>Created</th><th></th>
+        </tr></thead>
+        <tbody>
+          ${tokens.length === 0 ? '<tr><td colspan="9" class="empty">No tokens yet</td></tr>' :
+            tokens.map(t => {
+              const hitRate = pct(t.cache_hits, t.total_inputs);
+              const spent = t.total_cost_usd;
+              const budget = t.budget_usd;
+              const frac = budget ? Math.min(1, spent / budget) : null;
+              const barClass = frac > .9 ? 'over' : frac > .7 ? 'warn' : '';
+              return `<tr>
+                <td><strong>${esc(t.name)}</strong></td>
+                <td class="mono">${esc(t.key_prefix)}</td>
+                <td><span class="badge ${t.enabled ? 'badge-green' : 'badge-red'}">${t.enabled ? 'active' : 'disabled'}</span></td>
+                <td>${fmt(t.total_inputs)}</td>
+                <td>${hitRate}</td>
+                <td>${usd(spent)}</td>
+                <td style="min-width:120px">${budget != null ? `
+                  <div style="font-size:12px">${usd(spent)} / ${usd(budget)}</div>
+                  <div class="progress"><div class="progress-bar ${barClass}" style="width:${(frac*100).toFixed(1)}%"></div></div>
+                ` : '<span style="color:var(--muted);font-size:12px">unlimited</span>'}</td>
+                <td style="color:var(--muted);font-size:12px">${t.created_at.slice(0,10)}</td>
+                <td style="white-space:nowrap">
+                  <button class="btn btn-sm" onclick="openEdit(${t.id},'${esc(t.name)}',${budget ?? 'null'})">Edit</button>
+                  <button class="btn btn-sm" style="margin-left:4px" onclick="toggleToken(${t.id},${!t.enabled})">${t.enabled ? 'Disable' : 'Enable'}</button>
+                  <button class="btn btn-sm btn-danger" style="margin-left:4px" onclick="deleteToken(${t.id},'${esc(t.name)}')">Delete</button>
+                </td>
+              </tr>`;
+            }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+async function renderCache(el) {
+  const c = await api('GET', '/cache');
+  el.innerHTML = `
+    <div class="toolbar">
+      <h2>Embedding Cache</h2>
+      <button class="btn btn-danger" onclick="purgeCache()">Purge All</button>
+    </div>
+    <div class="cards">
+      <div class="card"><div class="label">Cached Entries</div><div class="value">${fmt(c.total_entries)}</div></div>
+      <div class="card"><div class="label">Lifetime Hits</div><div class="value">${fmt(c.total_hits)}</div></div>
+      <div class="card"><div class="label">Tokens Stored</div><div class="value">${fmt(c.total_tokens)}</div></div>
+    </div>
+    <div class="section-title">By Model</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Model</th><th>Entries</th><th>Lifetime Hits</th><th>Hit/Entry</th></tr></thead>
+        <tbody>
+          ${c.by_model.length === 0
+            ? '<tr><td colspan="4" class="empty">Cache is empty</td></tr>'
+            : c.by_model.map(m => `<tr>
+                <td class="mono">${esc(m.model)}</td>
+                <td>${fmt(m.entries)}</td>
+                <td>${fmt(m.hits)}</td>
+                <td>${m.entries ? (m.hits/m.entries).toFixed(1) : '—'}</td>
+              </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+// --- Modals ---
+function openCreate() {
+  document.getElementById('new-name').value = '';
+  document.getElementById('new-budget').value = '';
+  document.getElementById('modal-create').classList.remove('hidden');
+  setTimeout(() => document.getElementById('new-name').focus(), 50);
+}
+function closeCreate() { document.getElementById('modal-create').classList.add('hidden'); }
+
+async function submitCreate() {
+  const name = document.getElementById('new-name').value.trim();
+  if (!name) { alert('Name is required'); return; }
+  const budgetStr = document.getElementById('new-budget').value.trim();
+  const body = { name, ...(budgetStr ? { budget_usd: parseFloat(budgetStr) } : {}) };
+  try {
+    const res = await api('POST', '/tokens', body);
+    closeCreate();
+    document.getElementById('reveal-key').textContent = res.key;
+    document.getElementById('modal-reveal').classList.remove('hidden');
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+function closeReveal() {
+  document.getElementById('modal-reveal').classList.add('hidden');
+  loadPage();
+}
+
+async function deleteToken(id, name) {
+  if (!confirm(`Delete token "${name}"? This cannot be undone.`)) return;
+  await api('DELETE', `/tokens/${id}`);
+  loadPage();
+}
+
+async function toggleToken(id, enabled) {
+  await api('PATCH', `/tokens/${id}`, { enabled });
+  loadPage();
+}
+
+async function purgeCache() {
+  if (!confirm('Delete all cached embeddings? They will be re-fetched from OpenRouter on next use.')) return;
+  await api('DELETE', '/cache');
+  loadPage();
+}
+
+// --- Edit modal ---
+function openEdit(id, name, budget) {
+  document.getElementById('edit-id').value = id;
+  document.getElementById('edit-name').value = name;
+  document.getElementById('edit-budget').value = budget != null ? budget : '';
+  document.getElementById('modal-edit').classList.remove('hidden');
+  setTimeout(() => document.getElementById('edit-name').focus(), 50);
+}
+function closeEdit() { document.getElementById('modal-edit').classList.add('hidden'); }
+
+async function submitEdit() {
+  const id = document.getElementById('edit-id').value;
+  const name = document.getElementById('edit-name').value.trim();
+  if (!name) { alert('Name is required'); return; }
+  const budgetStr = document.getElementById('edit-budget').value.trim();
+  const body = {
+    name,
+    budget_usd: budgetStr ? parseFloat(budgetStr) : null,
+  };
+  try {
+    await api('PATCH', `/tokens/${id}`, body);
+    closeEdit();
+    loadPage();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+// Keyboard shortcut: Escape closes modals
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeCreate(); closeReveal(); closeEdit(); }
+});
+
+loadPage();
+</script>
+</body>
+</html>
