@@ -13,6 +13,22 @@ if (!process.env.OPENROUTER_API_KEY) {
   console.warn("WARNING: OPENROUTER_API_KEY not set — upstream requests will fail");
 }
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Authorization, Content-Type",
+};
+
+function withCors(res: Response): Response {
+  const headers = new Headers(res.headers);
+  for (const [k, v] of Object.entries(CORS_HEADERS)) headers.set(k, v);
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+}
+
+function preflight() {
+  return new Response(null, { status: 204, headers: CORS_HEADERS });
+}
+
 Bun.serve({
   port: PORT,
   routes: {
@@ -21,19 +37,20 @@ Bun.serve({
     "/admin":   dashboard,
 
     // Models list (informational)
-    "/v1/models":     { GET: () => modelsResponse() },
-    "/api/v1/models": { GET: () => modelsResponse() },
+    "/v1/models":     { GET: () => modelsResponse(), OPTIONS: preflight },
+    "/api/v1/models": { GET: () => modelsResponse(), OPTIONS: preflight },
 
     // Embeddings proxy
-    "/v1/embeddings":     { POST: handleEmbeddings },
-    "/api/v1/embeddings": { POST: handleEmbeddings },
+    "/v1/embeddings":     { POST: (req) => handleEmbeddings(req).then(withCors), OPTIONS: preflight },
+    "/api/v1/embeddings": { POST: (req) => handleEmbeddings(req).then(withCors), OPTIONS: preflight },
   },
 
   // Admin API (dynamic paths — handled via fetch fallback)
-  fetch(req) {
+  async fetch(req) {
+    if (req.method === "OPTIONS") return preflight();
     const path = new URL(req.url).pathname;
-    if (path.startsWith("/admin/")) return handleAdmin(req, path);
-    return Response.json({ error: "Not found" }, { status: 404 });
+    if (path.startsWith("/admin/")) return withCors(await handleAdmin(req, path));
+    return Response.json({ error: "Not found" }, { status: 404, headers: CORS_HEADERS });
   },
 });
 
