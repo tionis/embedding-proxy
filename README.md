@@ -39,7 +39,8 @@ Server starts on port `8080` by default. Open `http://localhost:8080/` for the a
 | `AWS_ACCESS_KEY_ID` | No | — | Credentials for Litestream replication |
 | `AWS_SECRET_ACCESS_KEY` | No | — | Credentials for Litestream replication |
 | `AWS_REGION` | No | — | AWS region for Litestream replication |
-| `LITESTREAM_ENDPOINT` | No | — | S3-compatible endpoint (e.g. for Cloudflare R2) |
+| `LITESTREAM_ENDPOINT` | No | — | S3-compatible endpoint URL (e.g. `https://nbg1.your-objectstorage.com`); also enables path-style access |
+| `LITESTREAM_REGION` | No | — | Region for S3-compatible stores (e.g. `nbg1` for Hetzner, `auto` for Cloudflare R2) |
 
 ## API
 
@@ -150,14 +151,17 @@ docker run -p 8080:8080 \
   embedding-proxy
 ```
 
-For **Cloudflare R2** or other S3-compatible stores, also set `LITESTREAM_ENDPOINT`:
+For **Cloudflare R2**, **Hetzner Object Storage**, **MinIO**, or other S3-compatible stores, also set `LITESTREAM_ENDPOINT` and `LITESTREAM_REGION`:
 
 ```bash
-  -e LITESTREAM_REPLICA_URL=s3://your-r2-bucket/embedding-proxy/db \
-  -e LITESTREAM_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com \
-  -e AWS_ACCESS_KEY_ID=<r2-access-key> \
-  -e AWS_SECRET_ACCESS_KEY=<r2-secret-key> \
+  -e LITESTREAM_REPLICA_URL=s3://your-bucket/embedding-proxy/db \
+  -e LITESTREAM_ENDPOINT=https://<endpoint-host> \
+  -e LITESTREAM_REGION=<region> \
+  -e AWS_ACCESS_KEY_ID=<access-key> \
+  -e AWS_SECRET_ACCESS_KEY=<secret-key> \
 ```
+
+Setting `LITESTREAM_ENDPOINT` automatically enables path-style access, which these providers require. Unset variables are ignored by Litestream, so the standard AWS example above is unaffected.
 
 If `LITESTREAM_REPLICA_URL` is not set, the container runs without replication. Mount a volume at `/data` to persist the database across restarts.
 

@@ -2,3 +2,5 @@ dbs:
   - path: ${DB_PATH}
     replicas:
       - url: ${LITESTREAM_REPLICA_URL}
+        endpoint: ${LITESTREAM_ENDPOINT}
+        region: ${LITESTREAM_REGION}
