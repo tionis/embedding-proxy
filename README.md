@@ -1,11 +1,13 @@
 # embedding-proxy
 
-An OpenAI-compatible embedding proxy with SQLite caching, API key management, and a web dashboard. Sits in front of [OpenRouter](https://openrouter.ai) and serves cached results so you never pay to embed the same text twice.
+An embedding proxy with SQLite caching, API key management, and a web dashboard. Sits in front of [OpenRouter](https://openrouter.ai) for text embeddings and [immich-machine-learning](https://immich.app) runners for image/CLIP embeddings. Cached results are served instantly with no upstream call.
 
 ## Features
 
 - **Drop-in OpenAI replacement** — compatible with any client that calls `/v1/embeddings` (Obsidian, LangChain, llama-index, etc.)
-- **Persistent embedding cache** — SHA-256 keyed per model+input, stored in SQLite; cache hits are free and instant
+- **Immich CLIP support** — proxy `POST /ml/predict` to your own immich-machine-learning runners for image and text CLIP embeddings
+- **Multi-runner pool** — configure multiple immich runners with `first-healthy` (immich default) or `round-robin` load balancing, backed by periodic `/ping` health checks
+- **Persistent embedding cache** — SHA-256 keyed per model+input (or model+image bytes), stored in SQLite; cache hits are free and instant
 - **Multi-tenant API keys** — issue scoped keys to different apps/users, each with an optional USD spend limit
 - **Admin dashboard** — web UI with global stats, per-key breakdowns, cache hit rates, daily cost history, and cache management
 - **OpenRouter backend** — supports all embedding models available on OpenRouter (`text-embedding-3-small`, `text-embedding-3-large`, `text-embedding-ada-002`, etc.)
@@ -32,13 +34,22 @@ Server starts on port `8080` by default. Open `http://localhost:8080/` for the a
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `ADMIN_KEY` | Yes | — | Bearer token for admin API and dashboard |
-| `OPENROUTER_API_KEY` | Yes | — | Your OpenRouter API key |
+| `OPENROUTER_API_KEY` | Yes* | — | Your OpenRouter API key (*not needed if only using immich CLIP) |
+| `IMMICH_ML_URLS` | No | — | Comma-separated list of immich-machine-learning runner base URLs |
+| `IMMICH_ML_STRATEGY` | No | `first-healthy` | Runner selection: `first-healthy` or `round-robin` |
+| `IMMICH_ML_HEALTH_INTERVAL` | No | `30` | Seconds between runner `/ping` health checks |
 | `PORT` | No | `8080` | Port to listen on |
 | `DB_PATH` | No | `./data.db` | Path to the SQLite database file |
 
 ## API
 
-The proxy exposes a standard OpenAI embeddings endpoint:
+All endpoints require an API key issued via the admin panel:
+
+```
+Authorization: Bearer emb_<key>
+```
+
+### Text embeddings (OpenRouter)
 
 ```
 POST /v1/embeddings
@@ -56,13 +67,50 @@ POST /api/v1/embeddings
 
 `input` can be a string or an array of strings. Each input is looked up in the cache independently, so a batch request may be partially served from cache.
 
-**Authentication** — pass an API key issued via the admin panel:
-
-```
-Authorization: Bearer emb_<key>
-```
-
 **Response** — identical to the OpenAI API format.
+
+### Immich CLIP predict (image + text)
+
+```
+POST /ml/predict
+```
+
+Same multipart/form-data body format as the immich-machine-learning `/predict` endpoint. Configure runners via `IMMICH_ML_URLS`.
+
+**Image embedding request:**
+
+```bash
+curl http://localhost:8080/ml/predict \
+  -H "Authorization: Bearer emb_your_token" \
+  -F 'entries={"clip":{"visual":{"modelName":"ViT-SO400M-16-SigLIP2-384__webli"}}}' \
+  -F 'image=@/path/to/image.jpg'
+```
+
+**Text (CLIP textual) embedding request:**
+
+```bash
+curl http://localhost:8080/ml/predict \
+  -H "Authorization: Bearer emb_your_token" \
+  -F 'entries={"clip":{"textual":{"modelName":"ViT-SO400M-16-SigLIP2-384__webli"}}}' \
+  -F 'text=a photo of a cat'
+```
+
+**Response** (from runner or cache):
+
+```json
+{ "clip": [0.0231, -0.0104, 0.0387, ...] }
+```
+
+Visual requests include `imageHeight` and `imageWidth` when served from the runner (not included on cache hits).
+
+**Error responses:**
+
+| Code | Meaning |
+|---|---|
+| `401` | Missing or invalid API key |
+| `400` | Malformed body (bad JSON in `entries`, missing fields) |
+| `502` | Runner returned an error |
+| `503` | No `IMMICH_ML_URLS` configured, or all runners unhealthy |
 
 ### Admin API
 

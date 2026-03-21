@@ -554,6 +554,47 @@ function renderDocs(el) {
   <p>Batch requests (array input) are handled per-item — cached items are returned instantly while only
   cache misses are forwarded to OpenRouter. A token's upstream budget is only debited for the miss portion.</p>
 
+  <h3>Error responses (text embeddings)</h3>
+  <ul>
+    <li><span class="inline-code">401</span> — missing or invalid API key</li>
+    <li><span class="inline-code">429</span> — upstream budget exceeded (cached inputs still work)</li>
+    <li><span class="inline-code">502</span> — OpenRouter returned an error</li>
+    <li><span class="inline-code">503</span> — no <span class="inline-code">OPENROUTER_API_KEY</span> configured on the server</li>
+  </ul>
+
+  <h3>Immich CLIP predict</h3>
+  <div class="endpoint">
+    <div><span class="method post">POST</span><span class="path">/ml/predict</span></div>
+    <div class="desc">Proxy to immich-machine-learning runners for image and text CLIP embeddings. Same multipart/form-data body as the immich <span class="inline-code">/predict</span> endpoint. Requires <span class="inline-code">IMMICH_ML_URLS</span> on the server.</div>
+  </div>
+  <p>Send a multipart/form-data request with two fields:</p>
+  <ul>
+    <li><span class="inline-code">entries</span> — JSON string describing the task and model</li>
+    <li><span class="inline-code">image</span> — image file (for visual CLIP), <strong>or</strong> <span class="inline-code">text</span> — plain string (for textual CLIP)</li>
+  </ul>
+  <p><strong>Image embedding (curl)</strong></p>
+  <pre><code>curl ${base}/ml/predict \\
+  -H "Authorization: Bearer emb_your_token" \\
+  -F 'entries={"clip":{"visual":{"modelName":"ViT-SO400M-16-SigLIP2-384__webli"}}}' \\
+  -F 'image=@/path/to/image.jpg'</code></pre>
+  <p><strong>Text (CLIP textual) embedding (curl)</strong></p>
+  <pre><code>curl ${base}/ml/predict \\
+  -H "Authorization: Bearer emb_your_token" \\
+  -F 'entries={"clip":{"textual":{"modelName":"ViT-SO400M-16-SigLIP2-384__webli"}}}' \\
+  -F 'text=a photo of a cat'</code></pre>
+  <p><strong>Response</strong></p>
+  <pre><code>{
+  "clip": [0.0231, -0.0104, 0.0387, ...]
+}</code></pre>
+  <p>Visual requests also include <span class="inline-code">imageHeight</span> and <span class="inline-code">imageWidth</span> when served from the runner (omitted on cache hits).</p>
+  <p><strong>Error responses</strong></p>
+  <ul>
+    <li><span class="inline-code">401</span> — missing or invalid API key</li>
+    <li><span class="inline-code">400</span> — malformed body or missing fields</li>
+    <li><span class="inline-code">502</span> — runner returned an error</li>
+    <li><span class="inline-code">503</span> — no <span class="inline-code">IMMICH_ML_URLS</span> configured, or all runners unhealthy</li>
+  </ul>
+
   <h3>Models</h3>
   <div class="endpoint">
     <div><span class="method get">GET</span><span class="path">/v1/models</span></div>
@@ -566,15 +607,7 @@ function renderDocs(el) {
     <li><span class="inline-code">openai/text-embedding-ada-002</span> — legacy, 1536 dims</li>
   </ul>
 
-  <h3>Error responses</h3>
-  <ul>
-    <li><span class="inline-code">401</span> — missing or invalid API key</li>
-    <li><span class="inline-code">429</span> — upstream budget exceeded (cached inputs still work)</li>
-    <li><span class="inline-code">502</span> — OpenRouter returned an error</li>
-    <li><span class="inline-code">503</span> — no <span class="inline-code">OPENROUTER_API_KEY</span> configured on the server</li>
-  </ul>
-
-  <h3>Code examples</h3>
+  <h3>Code examples (text embeddings)</h3>
   <p><strong>curl</strong></p>
   <pre><code>curl ${base}/v1/embeddings \\
   -H "Authorization: Bearer emb_your_token" \\

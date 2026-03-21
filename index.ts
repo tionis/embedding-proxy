@@ -1,5 +1,7 @@
 import { handleEmbeddings } from "./embeddings";
+import { handleMlPredict } from "./ml-predict";
 import { handleAdmin } from "./admin";
+import { strategy, runnerStatus } from "./runners";
 import dashboard from "./dashboard.html";
 
 const PORT = parseInt(process.env.PORT ?? "8080");
@@ -40,9 +42,12 @@ Bun.serve({
     "/v1/models":     { GET: () => modelsResponse(), OPTIONS: preflight },
     "/api/v1/models": { GET: () => modelsResponse(), OPTIONS: preflight },
 
-    // Embeddings proxy
+    // Embeddings proxy (text, via OpenRouter)
     "/v1/embeddings":     { POST: (req) => handleEmbeddings(req).then(withCors), OPTIONS: preflight },
     "/api/v1/embeddings": { POST: (req) => handleEmbeddings(req).then(withCors), OPTIONS: preflight },
+
+    // Immich ML predict proxy (image/text CLIP, via immich-machine-learning runners)
+    "/ml/predict": { POST: (req) => handleMlPredict(req).then(withCors), OPTIONS: preflight },
   },
 
   // Admin API (dynamic paths — handled via fetch fallback)
@@ -69,5 +74,13 @@ function modelsResponse() {
 }
 
 console.log(`Embedding proxy running on port ${PORT}`);
-console.log(`Dashboard: http://localhost:${PORT}/`);
-console.log(`API:       POST http://localhost:${PORT}/v1/embeddings`);
+console.log(`Dashboard:  http://localhost:${PORT}/`);
+console.log(`Text API:   POST http://localhost:${PORT}/v1/embeddings`);
+console.log(`ML predict: POST http://localhost:${PORT}/ml/predict`);
+
+const runners = runnerStatus();
+if (runners.length > 0) {
+  console.log(`Immich runners (${strategy}): ${runners.map(r => r.url).join(", ")}`);
+} else {
+  console.log(`Immich runners: none configured (set IMMICH_ML_URLS)`);
+}
