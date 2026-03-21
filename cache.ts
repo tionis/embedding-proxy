@@ -45,6 +45,9 @@ export async function handleCacheLookup(req: Request): Promise<Response> {
   if (!Array.isArray(body.keys) || body.keys.length === 0) {
     return jsonErr("keys must be a non-empty array of cache key strings", 400);
   }
+  if (body.keys.length > 999) {
+    return jsonErr("keys must contain at most 999 entries — split into smaller batches", 400);
+  }
   const keys: string[] = body.keys.map(String);
 
   const placeholders = keys.map(() => "?").join(", ");

@@ -174,7 +174,7 @@ Compute the cache key with SHA-256:
 }
 \`\`\`
 
-- \`keys\` (string[], required) — pre-computed hex SHA-256 cache keys
+- \`keys\` (string[], required) — pre-computed hex SHA-256 cache keys (max 999 per request — split larger batches client-side and issue requests concurrently)
 
 **Response (JSON)**
 
@@ -621,7 +621,8 @@ function cacheLookupOperation() {
               keys: {
                 type: "array",
                 items: { type: "string" },
-                description: "Pre-computed hex SHA-256 cache keys",
+                maxItems: 999,
+                description: "Pre-computed hex SHA-256 cache keys. Max 999 per request — split larger batches client-side.",
                 example: ["a3f1c2d4...", "7bd09400..."],
               },
             },
