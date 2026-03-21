@@ -1,6 +1,7 @@
 import { handleEmbeddings } from "./embeddings";
 import { handleMlPredict } from "./ml-predict";
 import { handleAdmin } from "./admin";
+import { handleDocs, handleOpenApi } from "./docs";
 import { strategy, runnerStatus } from "./runners";
 import dashboard from "./dashboard.html";
 
@@ -48,6 +49,10 @@ Bun.serve({
 
     // Immich ML predict proxy (image/text CLIP, via immich-machine-learning runners)
     "/ml/predict": { POST: (req) => handleMlPredict(req).then(withCors), OPTIONS: preflight },
+
+    // API reference
+    "/docs.md":      { GET: () => handleDocs() },
+    "/openapi.json": { GET: (req) => handleOpenApi(req) },
   },
 
   // Admin API (dynamic paths — handled via fetch fallback)
