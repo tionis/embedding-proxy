@@ -44,6 +44,9 @@ async function fetchFromUpstream(model: string, inputs: string[]): Promise<Upstr
 
   const cost_usd = body.usage?.cost ?? headerCost;
   const tokens = body.usage?.total_tokens ?? 0;
+  if (!Array.isArray(body.data)) {
+    throw new Error(`Unexpected response shape: ${JSON.stringify(body)}`);
+  }
   const sorted = [...body.data].sort((a, b) => a.index - b.index);
 
   return { embeddings: sorted.map(d => d.embedding), tokens, cost_usd };
