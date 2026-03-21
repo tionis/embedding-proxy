@@ -3,6 +3,10 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "start": "bun run index.ts",
+    "test": "DB_PATH=:memory: ADMIN_KEY=test-admin-key OPENROUTER_API_KEY=test-key bun test"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },
