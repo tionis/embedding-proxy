@@ -5,7 +5,7 @@ if [ -n "${LITESTREAM_REPLICA_URL}" ]; then
   # Restore database from replica if it doesn't exist locally
   if [ ! -f "${DB_PATH}" ]; then
     echo "Attempting restore from ${LITESTREAM_REPLICA_URL}..."
-    litestream restore -if-replica-exists "${DB_PATH}" \
+    litestream restore -config /etc/litestream.yml -if-replica-exists "${DB_PATH}" \
       || echo "No replica found, starting with fresh database"
   fi
 
