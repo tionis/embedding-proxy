@@ -1,4 +1,5 @@
 import { handleEmbeddings } from "./embeddings";
+import { handleCacheLookup } from "./cache";
 import { handleMlPredict } from "./ml-predict";
 import { handleAdmin } from "./admin";
 import { handleDocs, handleOpenApi } from "./docs";
@@ -46,6 +47,10 @@ Bun.serve({
     // Embeddings proxy (text, via OpenRouter)
     "/v1/embeddings":     { POST: (req) => handleEmbeddings(req).then(withCors), OPTIONS: preflight },
     "/api/v1/embeddings": { POST: (req) => handleEmbeddings(req).then(withCors), OPTIONS: preflight },
+
+    // Cache hydration — query cached embeddings by pre-computed cache keys
+    "/v1/cache/lookup":     { POST: (req) => handleCacheLookup(req).then(withCors), OPTIONS: preflight },
+    "/api/v1/cache/lookup": { POST: (req) => handleCacheLookup(req).then(withCors), OPTIONS: preflight },
 
     // Immich ML predict proxy (image/text CLIP, via immich-machine-learning runners)
     "/ml/predict": { POST: (req) => handleMlPredict(req).then(withCors), OPTIONS: preflight },
