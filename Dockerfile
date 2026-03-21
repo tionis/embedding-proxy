@@ -1,13 +1,5 @@
 FROM oven/bun:1-alpine
 
-# Install Litestream (multi-arch: amd64 / arm64)
-ARG LITESTREAM_VERSION=0.3.13
-ARG TARGETARCH=amd64
-RUN apk add --no-cache ca-certificates curl && \
-    curl -fL "https://github.com/benbjohnson/litestream/releases/download/v${LITESTREAM_VERSION}/litestream-v${LITESTREAM_VERSION}-linux-${TARGETARCH}.tar.gz" \
-      | tar -xz -C /usr/local/bin && \
-    apk del curl
-
 WORKDIR /app
 
 # Install dependencies (only devDeps needed — Bun runs TS directly)
@@ -26,8 +18,4 @@ ENV PORT=8080 \
 
 EXPOSE 8080
 
-COPY litestream.yml /etc/litestream.yml
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-
-ENTRYPOINT ["/entrypoint.sh"]
+CMD ["bun", "run", "/app/index.ts"]

@@ -35,12 +35,6 @@ Server starts on port `8080` by default. Open `http://localhost:8080/` for the a
 | `OPENROUTER_API_KEY` | Yes | — | Your OpenRouter API key |
 | `PORT` | No | `8080` | Port to listen on |
 | `DB_PATH` | No | `./data.db` | Path to the SQLite database file |
-| `LITESTREAM_REPLICA_URL` | No | — | S3-compatible URL for Litestream replication (e.g. `s3://bucket/db`) |
-| `AWS_ACCESS_KEY_ID` | No | — | Credentials for Litestream replication |
-| `AWS_SECRET_ACCESS_KEY` | No | — | Credentials for Litestream replication |
-| `AWS_REGION` | No | — | AWS region for Litestream replication |
-| `LITESTREAM_ENDPOINT` | No | — | S3-compatible endpoint URL (e.g. `https://nbg1.your-objectstorage.com`); also enables path-style access |
-| `LITESTREAM_REGION` | No | — | Region for S3-compatible stores (e.g. `nbg1` for Hetzner, `auto` for Cloudflare R2) |
 
 ## API
 
@@ -121,10 +115,6 @@ SQLite database with three tables:
 
 ## Docker
 
-A Docker image is provided with [Litestream](https://litestream.io) pre-installed for automatic SQLite replication.
-
-### Without replication
-
 ```bash
 docker run -p 8080:8080 \
   -e ADMIN_KEY=your-secret \
@@ -133,37 +123,7 @@ docker run -p 8080:8080 \
   embedding-proxy
 ```
 
-### With Litestream replication (recommended for production)
-
-Set `LITESTREAM_REPLICA_URL` to an S3-compatible path and provide credentials. On startup the container will:
-
-1. Restore the database from the replica if no local DB exists.
-2. Start the app with Litestream replicating in the background.
-
-```bash
-docker run -p 8080:8080 \
-  -e ADMIN_KEY=your-secret \
-  -e OPENROUTER_API_KEY=sk-or-... \
-  -e LITESTREAM_REPLICA_URL=s3://your-bucket/embedding-proxy/db \
-  -e AWS_ACCESS_KEY_ID=... \
-  -e AWS_SECRET_ACCESS_KEY=... \
-  -e AWS_REGION=us-east-1 \
-  embedding-proxy
-```
-
-For **Cloudflare R2**, **Hetzner Object Storage**, **MinIO**, or other S3-compatible stores, also set `LITESTREAM_ENDPOINT` and `LITESTREAM_REGION`:
-
-```bash
-  -e LITESTREAM_REPLICA_URL=s3://your-bucket/embedding-proxy/db \
-  -e LITESTREAM_ENDPOINT=https://<endpoint-host> \
-  -e LITESTREAM_REGION=<region> \
-  -e AWS_ACCESS_KEY_ID=<access-key> \
-  -e AWS_SECRET_ACCESS_KEY=<secret-key> \
-```
-
-Setting `LITESTREAM_ENDPOINT` automatically enables path-style access, which these providers require. Unset variables are ignored by Litestream, so the standard AWS example above is unaffected.
-
-If `LITESTREAM_REPLICA_URL` is not set, the container runs without replication. Mount a volume at `/data` to persist the database across restarts.
+Mount a volume at `/data` to persist the database across restarts.
 
 ## Stack
 
