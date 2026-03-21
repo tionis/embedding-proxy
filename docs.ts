@@ -143,6 +143,81 @@ Visual requests served from the runner also include \`imageHeight\` and \`imageW
 
 ---
 
+## Cache hydration
+
+### POST /v1/cache/lookup
+
+Also available at \`POST /api/v1/cache/lookup\`.
+
+Batch-query the cache by pre-computed cache keys. Clients can hash their inputs
+locally and check which ones are already cached before sending data over the wire,
+reducing upstream bandwidth.
+
+**Cache key format**
+
+Compute the cache key with SHA-256:
+
+| Input type | Key input |
+|------------|-----------|
+| Text embedding | \`model + "\\x00" + text\` |
+| Image CLIP (visual) | \`model + "\\x00image\\x00" + imageBytes\` |
+| Text CLIP (textual) | \`model + "\\x00" + text\` |
+
+**Request (JSON)**
+
+\`\`\`json
+{
+  "keys": [
+    "a3f1c2...",
+    "7bd094..."
+  ]
+}
+\`\`\`
+
+- \`keys\` (string[], required) — pre-computed hex SHA-256 cache keys
+
+**Response (JSON)**
+
+\`\`\`json
+{
+  "hits": {
+    "a3f1c2...": { "object": "embedding", "embedding": [0.0231, -0.0104] }
+  },
+  "misses": ["7bd094..."]
+}
+\`\`\`
+
+**Example (Node.js / image hashing)**
+
+\`\`\`js
+import { createHash } from "crypto";
+import { readFileSync } from "fs";
+
+const model = "ViT-SO400M-16-SigLIP2-384__webli";
+const imageBytes = readFileSync("photo.jpg");
+const key = createHash("sha256")
+  .update(model + "\\x00image\\x00")
+  .update(imageBytes)
+  .digest("hex");
+
+const res = await fetch("/v1/cache/lookup", {
+  method: "POST",
+  headers: { "Authorization": "Bearer emb_...", "Content-Type": "application/json" },
+  body: JSON.stringify({ keys: [key] }),
+});
+const { hits, misses } = await res.json();
+// hits[key].embedding — cached vector, or key appears in misses
+\`\`\`
+
+**Errors**
+
+| Status | Meaning |
+|--------|---------|
+| 401 | Missing or invalid API key |
+| 400 | \`keys\` missing or not a non-empty array |
+
+---
+
 ## Admin API
 
 All admin endpoints require \`Authorization: Bearer <ADMIN_KEY>\`.
@@ -377,6 +452,12 @@ function buildOpenApiSpec(serverUrl: string) {
           },
         },
       },
+      "/v1/cache/lookup": {
+        post: cacheLookupOperation(),
+      },
+      "/api/v1/cache/lookup": {
+        post: { ...cacheLookupOperation(), summary: "Cache hydration lookup (alternate path)" },
+      },
       "/v1/models": {
         get: {
           summary: "List available embedding models",
@@ -516,6 +597,71 @@ function buildOpenApiSpec(serverUrl: string) {
           responses: { "200": { description: "OpenAPI 3.1 JSON", content: { "application/json": {} } } },
         },
       },
+    },
+  };
+}
+
+function cacheLookupOperation() {
+  return {
+    summary: "Cache hydration lookup",
+    description:
+      "Batch-query the cache by pre-computed SHA-256 cache keys. " +
+      "Clients hash their inputs locally to check which are already cached before sending data over the wire. " +
+      "Key format — text/textual CLIP: sha256(model + '\\x00' + text); " +
+      "visual CLIP: sha256(model + '\\x00image\\x00' + imageBytes).",
+    tags: ["Cache"],
+    requestBody: {
+      required: true,
+      content: {
+        "application/json": {
+          schema: {
+            type: "object",
+            required: ["keys"],
+            properties: {
+              keys: {
+                type: "array",
+                items: { type: "string" },
+                description: "Pre-computed hex SHA-256 cache keys",
+                example: ["a3f1c2d4...", "7bd09400..."],
+              },
+            },
+          },
+        },
+      },
+    },
+    responses: {
+      "200": {
+        description: "Hits and misses",
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              properties: {
+                hits: {
+                  type: "object",
+                  additionalProperties: {
+                    type: "object",
+                    properties: {
+                      object:    { type: "string", enum: ["embedding"] },
+                      embedding: { type: "array", items: { type: "number" } },
+                    },
+                    required: ["object", "embedding"],
+                  },
+                  description: "Map of cache key → embedding for each hit",
+                },
+                misses: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "Keys that were not found in the cache",
+                },
+              },
+              required: ["hits", "misses"],
+            },
+          },
+        },
+      },
+      "400": { description: "keys missing or not a non-empty array", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+      "401": { description: "Missing or invalid API key",            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
     },
   };
 }
